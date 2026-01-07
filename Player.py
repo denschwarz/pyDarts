@@ -14,14 +14,18 @@ class Player:
         self.throws_finished_legs_strings = []
         self.last_turn_strings = []
 
-    def add_throw(self, value: int, value_string: str):
+    def add_throw(self, value: int, value_string: str, subtract_from_score = True):
         self.throws.append(value)
         self.throws_strings.append(value_string)
-        self.current_score -= value
+        if subtract_from_score:
+            self.current_score -= value
+        else:
+            self.current_score += value
 
-    def add_turn(self, turn):
+
+    def add_turn(self, turn, subtract_from_score = True):
         for value, value_string in zip(turn.throws, turn.throws_strings):
-            self.add_throw(value, value_string)
+            self.add_throw(value, value_string, subtract_from_score)
         self.last_turn = turn.throws
         self.last_turn_strings = turn.throws_strings
 

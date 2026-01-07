@@ -24,3 +24,12 @@ class Turn:
         if sum(self.throws) == self.current_score:
             self.done = True
             # FIXME: We could check for doubles here
+
+
+    def add_throw_20s(self, value: int, score_string: str):
+        if len(self.throws) < 3:
+            self.throws.append(value)
+            self.throws_strings.append(score_string)
+        # Turn over after 3 throws
+        if len(self.throws) == 3:
+            self.done = True

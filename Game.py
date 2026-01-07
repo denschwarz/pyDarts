@@ -16,12 +16,14 @@ def pad_cell(text, width, align=">"):
 
 
 class Game:
-    def __init__(self, players):
+    def __init__(self, players, mode="normal"):
         self.players = players
         self.current_player_index = 0
         self.finished = False
         self.start_player_index = 0
         self.last_player_score_string = ""
+        self.mode = mode
+        self.max_rounds = 1000
 
         # ANSI styles
         self.RESET = "\033[0m"
@@ -29,6 +31,19 @@ class Game:
         self.GREEN = "\033[32m"
         self.CYAN = "\033[36m"
         self.RED = "\033[31m"
+
+        # Markers
+        self.START_MARK = "•"
+        self.CURRENT_MARK = "◀"
+        self.LEGSWON_MARK = "✖"
+
+    def current_round(self):
+        # Current round is defined by the least progressed player (and offset by 1 because rounds should start at 1)
+        completed_rounds_per_player = [ len(p.throws) // 3 for p in self.players ]
+        return min(completed_rounds_per_player) + 1 
+
+    def set_max_rounds(self, N):
+        self.max_rounds = N
 
     def current_player(self):
         return self.players[self.current_player_index]
@@ -58,24 +73,43 @@ class Game:
             p.start_new_leg()
 
     def leg_is_finished(self):
-        return any(p.current_score <= 0 for p in self.players)
+        if self.mode == "normal":
+            return any(p.current_score <= 0 for p in self.players)
+        elif self.mode == "score20":
+            return self.current_round() > self.max_rounds
+    
 
     def declare_winner(self):
-        for p in self.players:
-            if p.current_score == 0:
-                print(f"\n🎯 Gewinner: {p.name}")
-                p.make_winner()
-            else:
-                p.make_looser()
+        if self.mode == "normal":
+            for p in self.players:
+                if p.current_score == 0:
+                    print(f"\n🎯 Gewinner: {p.name}")
+                    p.make_winner()
+                else:
+                    p.make_looser()
+        elif self.mode == "score20":
+            max_score = max(p.current_score for p in self.players)
+            for p in self.players:
+                if p.current_score == max_score:
+                    print(f"\n🎯 Gewinner: {p.name}")
+                    p.make_winner()
+                else:
+                    p.make_looser()
 
     def print_turn_header(self, correction_mode, first_turn):
         current_player = self.players[self.current_player_index]
         print(f"Bedienung")
         print(f"  c                    : Korrektur")
-        print(f"  dX                   : Double X")
-        print(f"  tX                   : Triple X")
-        print(f"  sb/bull/25           : Bull")
-        print(f"  db/dbull/bullseye/50 : Bullseye")
+        if self.mode == "normal":
+            print(f"  dX                   : Double X")
+            print(f"  tX                   : Triple X")
+            print(f"  sb/bull/25           : Bull")
+            print(f"  db/dbull/bullseye/50 : Bullseye")
+        elif self.mode == "score20":
+            print(f"  s                    : Single hit")
+            print(f"  d                    : Double hit")
+            print(f"  t                    : Triple hit")
+            print(f"  0                    : No hit")
         if first_turn:
             print("\n\n")
         else:
@@ -88,6 +122,9 @@ class Game:
 
 
     def print_score_table(self):
+        if self.mode == "score20":
+            print(f"Round {self.current_round()} of {self.max_rounds}")
+
         # column widths
         NAME_W = 15
         LEGS_W = 8
@@ -131,16 +168,19 @@ class Game:
         print(self.CYAN + hline("├", MM, "┤") + self.RESET)
 
         # player rows
-        for p in self.players:
+        for idx, p in enumerate(self.players):
+            start_mark = self.CYAN+" "+self.START_MARK+self.RESET if idx == self.start_player_index else "  "
+            current_turn_mark = self.RED+" "+self.CURRENT_MARK+self.RESET if idx == self.current_player_index else "  "
             print(
                 self.CYAN + V + self.RESET
-                + cell(p.name, NAME_W) + self.CYAN + V + self.RESET
+                + pad_cell(p.name+start_mark, NAME_W, "<") + self.CYAN + V + self.RESET
                 + cell(p.legs_won, LEGS_W, ">") + self.CYAN + V + self.RESET
                 + self.BOLD + self.GREEN
                 + cell(p.current_score, SCORE_W, ">")
                 + self.RESET + self.CYAN + V + self.RESET
                 + cell(f"{p.get_3dart_average_total():.2f}", AVG_W, ">") + self.CYAN + V + self.RESET
                 + cell(f"{p.get_3dart_average_this_leg():.2f}", LEG_AVG_W, ">") + self.CYAN + V + self.RESET
+                + current_turn_mark
             )
 
         # bottom border
@@ -221,7 +261,7 @@ class Game:
                     self.CYAN + V + self.RESET
                     + pad_cell(
                         (
-                            self.BOLD + self.RED + "✖ " + self.RESET
+                            self.BOLD + self.RED + self.LEGSWON_MARK +" " + self.RESET
                             if leg < len(p.leg_results) and is_win(p.leg_results[leg])
                             else "  "
                         )
